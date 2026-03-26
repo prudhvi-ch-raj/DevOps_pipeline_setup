@@ -1,0 +1,65 @@
+pipeline {
+    agent {
+        docker {
+            image 'node:18-bullseye'
+            args '-u root'  // so Jenkins can run Docker inside
+        }
+    }
+
+    environment {
+        APP_DIR = 'app'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                dir("${APP_DIR}") {
+                    sh 'npm install'
+                }
+            }
+        }
+
+        stage('Lint') {
+            steps {
+                dir("${APP_DIR}") {
+                    sh 'npx eslint .'
+                }
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                dir("${APP_DIR}") {
+                    sh 'node test.js'
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                dir("${APP_DIR}") {
+                    sh 'docker build -t sample-app .'
+                }
+            }
+        }
+
+        stage('Test Deploy (Run Container)') {
+            steps {
+                dir("${APP_DIR}") {
+                    sh '''
+                        docker run --rm -d -p 3000:3000 --name sample-app-container sample-app
+                        sleep 3
+                        docker logs sample-app-container
+                        docker stop sample-app-container
+                    '''
+                }
+            }
+        }
+    }
+}
